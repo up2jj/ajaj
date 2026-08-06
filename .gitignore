@@ -1,0 +1,29 @@
+# Project binary
+/ajaj
+
+# Go build outputs
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test, coverage, profiling, and debugger outputs
+*.test
+*.out
+*.coverprofile
+coverage.*
+*.prof
+*.pprof
+__debug_bin*
+
+# Local Go workspace files
+go.work
+go.work.sum
+
+# Local editor and operating-system files
+.idea/
+.DS_Store
+Thumbs.db
