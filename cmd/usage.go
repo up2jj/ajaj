@@ -104,7 +104,7 @@ func newUsageIngestCmd(deps dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), usagepkg.Format(snapshot, time.Now()))
+			fmt.Fprintln(cmd.OutOrStdout(), usagepkg.FormatStatusLine(a, snapshot, time.Now()))
 			return nil
 		},
 	}

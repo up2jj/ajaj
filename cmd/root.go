@@ -89,7 +89,7 @@ func newRootCmd(deps dependencies) *cobra.Command {
 			if err := deps.store.SetActive(model.Selected.Provider, model.Selected.Name); err != nil {
 				return err
 			}
-			return deps.runner.Run(cmd.Context(), *model.Selected)
+			return runAccount(cmd, deps, *model.Selected)
 		},
 	}
 

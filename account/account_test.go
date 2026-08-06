@@ -34,6 +34,9 @@ func TestStoreAccountLifecycle(t *testing.T) {
 	if err := store.SetActive(Codex, "work"); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.SetLastSelected(Codex, "work"); err != nil {
+		t.Fatal(err)
+	}
 	registry, err := store.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +47,9 @@ func TestStoreAccountLifecycle(t *testing.T) {
 	}
 	if !registry.Selection.Auto || registry.Selection.SwitchAt != 90 {
 		t.Fatalf("default selection policy = %#v", registry.Selection)
+	}
+	if registry.LastSelected[Codex] != "work" {
+		t.Fatalf("last selected Codex account = %q", registry.LastSelected[Codex])
 	}
 }
 

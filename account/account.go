@@ -30,9 +30,10 @@ type Account struct {
 func (a Account) ID() string { return string(a.Provider) + "/" + a.Name }
 
 type Registry struct {
-	Accounts  []Account           `json:"accounts"`
-	Active    map[Provider]string `json:"active"`
-	Selection SelectionPolicy     `json:"selection"`
+	Accounts     []Account           `json:"accounts"`
+	Active       map[Provider]string `json:"active"`
+	LastSelected map[Provider]string `json:"last_selected,omitempty"`
+	Selection    SelectionPolicy     `json:"selection"`
 }
 
 type SelectionPolicy struct {
@@ -93,8 +94,9 @@ func (s *Store) Load() (Registry, error) {
 	data, err := os.ReadFile(s.registryPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return Registry{
-			Active:    make(map[Provider]string),
-			Selection: DefaultSelectionPolicy(),
+			Active:       make(map[Provider]string),
+			LastSelected: make(map[Provider]string),
+			Selection:    DefaultSelectionPolicy(),
 		}, nil
 	}
 	if err != nil {
@@ -107,6 +109,9 @@ func (s *Store) Load() (Registry, error) {
 	}
 	if registry.Active == nil {
 		registry.Active = make(map[Provider]string)
+	}
+	if registry.LastSelected == nil {
+		registry.LastSelected = make(map[Provider]string)
 	}
 	if registry.Selection.SwitchAt == 0 {
 		registry.Selection = DefaultSelectionPolicy()
@@ -169,6 +174,18 @@ func (s *Store) SetActive(provider Provider, name string) error {
 		return fmt.Errorf("account %s/%s does not exist", provider, name)
 	}
 	registry.Active[provider] = name
+	return s.Save(registry)
+}
+
+func (s *Store) SetLastSelected(provider Provider, name string) error {
+	registry, err := s.Load()
+	if err != nil {
+		return err
+	}
+	if _, exists := registry.Find(provider, name); !exists {
+		return fmt.Errorf("account %s/%s does not exist", provider, name)
+	}
+	registry.LastSelected[provider] = name
 	return s.Save(registry)
 }
 

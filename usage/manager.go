@@ -52,7 +52,7 @@ func (m *Manager) Refresh(ctx context.Context, a account.Account) (Snapshot, err
 func (m *Manager) Select(ctx context.Context, registry account.Registry, provider account.Provider) (Selection, error) {
 	preferred, ok := registry.ActiveAccount(provider)
 	if !ok {
-		return Selection{}, fmt.Errorf("no active %s account", provider)
+		return Selection{}, fmt.Errorf("no preferred %s profile", provider)
 	}
 	result := Selection{Account: preferred, Preferred: preferred}
 	if !registry.Selection.Auto {

@@ -25,6 +25,9 @@ func TestRecordClaude(t *testing.T) {
 	if got := Format(snapshot, now); got != "5h 73% · 7d 41%" && got != "7d 41% · 5h 73%" {
 		t.Fatalf("Format() = %q", got)
 	}
+	if got := FormatStatusLine(a, snapshot, now); got != "[ajaj claude/work] 5h 73% · 7d 41%" {
+		t.Fatalf("FormatStatusLine() = %q", got)
+	}
 	if _, ok, err := store.Read(a); err != nil || !ok {
 		t.Fatalf("stored snapshot = %v, %v", ok, err)
 	}

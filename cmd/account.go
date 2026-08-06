@@ -14,9 +14,45 @@ func newAccountCmd(deps dependencies) *cobra.Command {
 	cmd := &cobra.Command{Use: "account", Short: "Manage isolated accounts"}
 	cmd.AddCommand(newAccountAddCmd(deps))
 	cmd.AddCommand(newAccountListCmd(deps))
+	cmd.AddCommand(newAccountCurrentCmd(deps))
 	cmd.AddCommand(newAccountUseCmd(deps))
 	cmd.AddCommand(newAccountAutoCmd(deps))
 	return cmd
+}
+
+func newAccountCurrentCmd(deps dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "current [claude|codex]",
+		Short: "Show preferred and most recently launched profiles",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			registry, err := deps.store.Load()
+			if err != nil {
+				return err
+			}
+			providers := []account.Provider{account.Claude, account.Codex}
+			if len(args) == 1 {
+				provider, parseErr := account.ParseProvider(args[0])
+				if parseErr != nil {
+					return parseErr
+				}
+				providers = []account.Provider{provider}
+			}
+			for _, provider := range providers {
+				preferred := registry.Active[provider]
+				if preferred == "" {
+					fmt.Fprintf(cmd.OutOrStdout(), "%-8s not configured\n", provider)
+					continue
+				}
+				selected := registry.LastSelected[provider]
+				if selected == "" {
+					selected = "never launched"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%-8s preferred=%s  last-selected=%s\n", provider, preferred, selected)
+			}
+			return nil
+		},
+	}
 }
 
 func newAccountAddCmd(deps dependencies) *cobra.Command {
@@ -127,7 +163,7 @@ func newAccountAutoCmd(deps dependencies) *cobra.Command {
 func newAccountUseCmd(deps dependencies) *cobra.Command {
 	return &cobra.Command{
 		Use:   "use <claude|codex> <name>",
-		Short: "Set the active account for a provider",
+		Short: "Set the preferred profile for a provider",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider, err := account.ParseProvider(args[0])
@@ -137,7 +173,7 @@ func newAccountUseCmd(deps dependencies) *cobra.Command {
 			if err := deps.store.SetActive(provider, args[1]); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Active %s account: %s\n", provider, args[1])
+			fmt.Fprintf(cmd.OutOrStdout(), "Preferred %s profile: %s\n", provider, args[1])
 			return nil
 		},
 	}

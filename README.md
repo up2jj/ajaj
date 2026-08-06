@@ -21,7 +21,8 @@ command / Bubble Tea ────┤
 - Codex isolation uses `CODEX_HOME`. Each Codex account home is initialized
   with `cli_auth_credentials_store = "file"`, so credentials stay inside that
   isolated home instead of collapsing back into one OS-keychain entry.
-- The registry contains only provider, display name, path, and active selection.
+- The registry contains only provider, display name, path, preferred selection,
+  and the most recently selected profile.
   It is written atomically with mode `0600`; profile directories use `0700`.
 - Provider-specific behavior lives behind a small adapter, so another coding
   agent can be added without coupling it to Cobra or Bubble Tea.
@@ -51,9 +52,10 @@ ajaj account add claude personal --login
 ajaj account add claude work --login
 ajaj account add codex personal --login
 
-# Inspect and change the active account for each provider.
+# Inspect profiles and change the preferred profile for each provider.
 ajaj account list
 ajaj account use claude work
+ajaj account current
 
 # Usage-aware selection is enabled by default at 90%.
 ajaj account auto on --threshold 85
@@ -63,11 +65,11 @@ ajaj account auto off
 ajaj usage
 ajaj usage refresh codex
 
-# Forward every remaining argument to the active account.
+# Forward every remaining argument using the preferred or auto-selected profile.
 ajaj claude --model opus
 ajaj codex --full-auto
 
-# Run an explicit account without changing the active selection.
+# Run an explicit account without changing the preferred selection.
 ajaj run claude personal --model sonnet
 
 # Open the interactive picker and launch the selected account.
@@ -77,8 +79,8 @@ ajaj
 ## Automatic selection
 
 `ajaj claude ...` and `ajaj codex ...` choose a profile immediately before
-starting the provider process. The configured active profile remains the
-preferred one. When its fresh usage snapshot reaches the threshold, `ajaj`
+starting the provider process. The configured preferred profile remains
+unchanged. When its fresh usage snapshot reaches the threshold, `ajaj`
 uses the fresh, below-threshold profile with the lowest usage for that launch.
 It does not switch during a running session, alter the preferred profile, or
 retry a failed prompt under another identity.
@@ -99,6 +101,37 @@ retry a failed prompt under another identity.
 The `ajaj` executable must be on `PATH` for Claude's status-line collector.
 Use this only with accounts you own or are authorized to operate, and within
 the providers' applicable terms and organizational policies.
+
+## Identifying the running profile
+
+Every provider launch prints the selected profile before the provider starts:
+
+```text
+ajaj: running claude/work
+```
+
+The child process also receives `AJAJ_PROVIDER`, `AJAJ_PROFILE`, and
+`AJAJ_ACCOUNT` (for example, `claude`, `work`, and `claude/work`). Claude's
+installed status-line collector displays the profile continuously:
+
+```text
+[ajaj claude/work] 5h 31% · 7d 64%
+```
+
+Custom Claude status lines can include `$AJAJ_ACCOUNT`. For Codex, `ajaj` uses
+a best-effort terminal title such as `ajaj · codex/personal` while the process
+is running and restores the previous title afterward. Terminal-title escapes
+are never written when output is redirected.
+
+Use `ajaj account current [claude|codex]` from another terminal to distinguish
+the configured preferred profile from the most recently selected launch:
+
+```text
+claude   preferred=work  last-selected=personal
+```
+
+These labels identify the isolated ajaj profile, not the remote identity.
+Inside either provider, use `/status` to verify the authenticated account.
 
 For Claude, an empty isolated directory causes the normal first-run login flow.
 For Codex, `ajaj login codex <name>` runs `codex login` in that account home.

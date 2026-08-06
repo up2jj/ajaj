@@ -107,3 +107,7 @@ func Format(snapshot Snapshot, now time.Time) string {
 	}
 	return text
 }
+
+func FormatStatusLine(a account.Account, snapshot Snapshot, now time.Time) string {
+	return fmt.Sprintf("[ajaj %s] %s", a.ID(), Format(snapshot, now))
+}

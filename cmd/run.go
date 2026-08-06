@@ -34,7 +34,7 @@ func newRunCmd(deps dependencies) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return deps.runner.Run(cmd.Context(), a, args[2:]...)
+			return runAccount(cmd, deps, a, args[2:]...)
 		},
 	}
 	return cmd
@@ -43,7 +43,7 @@ func newRunCmd(deps dependencies) *cobra.Command {
 func newProviderCmd(deps dependencies, provider account.Provider) *cobra.Command {
 	return &cobra.Command{
 		Use:                string(provider) + " [arguments...]",
-		Short:              "Run " + string(provider) + " with its active account",
+		Short:              "Run " + string(provider) + " with its preferred or auto-selected profile",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := deps.store.Load()
@@ -52,7 +52,7 @@ func newProviderCmd(deps dependencies, provider account.Provider) *cobra.Command
 			}
 			a, ok := registry.ActiveAccount(provider)
 			if !ok {
-				return fmt.Errorf("no active %s account; add one with ajaj account add %s <name>", provider, provider)
+				return fmt.Errorf("no preferred %s profile; add one with ajaj account add %s <name>", provider, provider)
 			}
 			if deps.usage != nil {
 				selection, selectErr := deps.usage.Select(cmd.Context(), registry, provider)
@@ -67,9 +67,16 @@ func newProviderCmd(deps dependencies, provider account.Provider) *cobra.Command
 					fmt.Fprintf(cmd.ErrOrStderr(), "ajaj: auto-selected %s (%s)\n", a.ID(), selection.Reason)
 				}
 			}
-			return deps.runner.Run(cmd.Context(), a, args...)
+			return runAccount(cmd, deps, a, args...)
 		},
 	}
+}
+
+func runAccount(cmd *cobra.Command, deps dependencies, a account.Account, args ...string) error {
+	if err := deps.store.SetLastSelected(a.Provider, a.Name); err != nil {
+		return err
+	}
+	return deps.runner.Run(cmd.Context(), a, args...)
 }
 
 func findAccount(deps dependencies, providerName, name string) (account.Account, error) {
