@@ -3,8 +3,9 @@
 `ajaj` is a small Go CLI/TUI for keeping multiple Claude Code and Codex
 accounts isolated and launching either tool with the right account.
 
-It uses Cobra for a scriptable command surface and Bubble Tea for the default
-interactive account picker.
+It uses Cobra for a scriptable command surface, Bubble Tea for the interactive
+account picker, and Huh for deletion confirmations. Running `ajaj` without a
+subcommand opens the picker.
 
 ## Install
 
@@ -66,11 +67,13 @@ ajaj account add claude personal --login
 ajaj account add claude work --login
 ajaj account add codex personal --login
 
-# Inspect profiles and change the default profile for each provider.
+# Inspect profiles and choose the default profile for each provider.
 ajaj account list
 ajaj account default claude work
-ajaj account delete claude personal
 ajaj account current
+
+# Delete a profile after confirmation. Its data is moved to recoverable trash.
+ajaj account delete claude personal
 
 # Usage-aware selection is enabled by default at 90%.
 ajaj account auto on --threshold 85
@@ -87,9 +90,49 @@ ajaj codex --full-auto
 # Run an explicit account without changing the default selection.
 ajaj run claude personal --model sonnet
 
-# Open the interactive picker. Enter launches once; d sets the default; x deletes.
+# Open the interactive picker.
 ajaj
 ```
+
+## Defaults and the picker
+
+The first profile added for a provider becomes its default automatically. Set a
+different default explicitly with:
+
+```sh
+ajaj account default claude work
+```
+
+The default is the starting profile for `ajaj claude ...` or `ajaj codex ...`.
+Usage-aware selection may choose another profile for one launch without
+changing the default.
+
+The picker marks each provider's default profile and offers four actions:
+
+- `enter` launches the highlighted profile once without changing the default.
+- `d` sets the highlighted profile as the provider's default and exits without
+  launching it.
+- `x` opens a deletion confirmation for the highlighted profile.
+- `q`, `esc`, or `ctrl+c` exits without making changes.
+
+## Deleting and recovering profiles
+
+Both `ajaj account delete <provider> <name>` and the picker's `x` action show a
+Huh confirmation. Cancelling leaves the profile unchanged. Confirming deletion:
+
+- removes the profile from the registry;
+- clears its default or last-selected marker when applicable;
+- removes its cached usage snapshot; and
+- moves its profile directory to `<profiles-root>/.trash` instead of erasing
+  credentials permanently.
+
+No replacement default is selected automatically. If other profiles remain,
+choose one with `ajaj account default <provider> <name>`.
+
+The success message prints the exact trash path. To recover a profile, move
+that directory back to `<profiles-root>/<provider>/<name>`, then register it
+again with `ajaj account add <provider> <name>`. Do not pass `--login`; the
+restored provider data already contains the profile's authentication state.
 
 ## Automatic selection
 
@@ -204,8 +247,6 @@ git push origin v0.1.0
 ## Deliberate MVP boundaries
 
 - The app manages terminal CLIs, not their IDE extensions or desktop apps.
-- Account deletion requires explicit confirmation and moves profile data into
-  the profiles `.trash` directory so it can be recovered manually.
 - The registry is safe against partial writes, but simultaneous mutations from
   multiple `ajaj` processes are not serialized yet.
 - Usage is read only from provider-supported surfaces and cached as local
