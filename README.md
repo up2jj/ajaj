@@ -6,6 +6,20 @@ accounts isolated and launching either tool with the right account.
 It uses Cobra for a scriptable command surface and Bubble Tea for the default
 interactive account picker.
 
+## Install
+
+With Homebrew:
+
+```sh
+brew install up2jj/tap/ajaj
+```
+
+Or install the latest source with Go:
+
+```sh
+go install github.com/up2jj/ajaj@latest
+```
+
 ## Design
 
 The application does not read, copy, or interpret credentials. Every account
@@ -142,6 +156,41 @@ For Codex, `ajaj login codex <name>` runs `codex login` in that account home.
 go build ./...
 go test ./...
 go vet ./...
+```
+
+Common tasks are also available through the [`justfile`](justfile) (install
+`just` with `brew install just`):
+
+```sh
+just                 # list recipes
+just build           # build ./ajaj
+just install         # install with the current git version
+just test            # run tests
+just ci              # formatting, vet, tests, and GoReleaser validation
+just snapshot        # build a local release into ./dist
+just release 0.1.0   # tag and push v0.1.0
+```
+
+## Release
+
+Releases are automated with [GoReleaser](https://goreleaser.com). Add a
+fine-grained GitHub personal access token as the repository secret
+`HOMEBREW_TAP_GITHUB_TOKEN`; it needs Contents read/write access to
+`up2jj/homebrew-tap`.
+
+Validate a release locally with:
+
+```sh
+goreleaser check
+goreleaser build --snapshot --clean
+```
+
+Pushing a semantic `v*` tag publishes the GitHub release and updates the
+`ajaj` cask in `up2jj/homebrew-tap`:
+
+```sh
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
 ```
 
 ## Deliberate MVP boundaries

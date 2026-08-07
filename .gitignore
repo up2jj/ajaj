@@ -4,6 +4,7 @@
 # Go build outputs
 /bin/
 /dist/
+/completions/
 *.exe
 *.exe~
 *.dll

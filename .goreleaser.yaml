@@ -1,0 +1,68 @@
+version: 2
+
+project_name: ajaj
+
+before:
+  hooks:
+    - go mod tidy
+    - mkdir -p completions
+    - sh -c 'go run . completion bash > completions/ajaj.bash'
+    - sh -c 'go run . completion zsh  > completions/ajaj.zsh'
+    - sh -c 'go run . completion fish > completions/ajaj.fish'
+
+builds:
+  - id: ajaj
+    main: .
+    binary: ajaj
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/up2jj/ajaj/cmd.version=v{{ .Version }}
+
+archives:
+  - id: ajaj
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - completions/*
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+homebrew_casks:
+  - name: ajaj
+    binaries: [ajaj]
+    completions:
+      bash: completions/ajaj.bash
+      zsh: completions/ajaj.zsh
+      fish: completions/ajaj.fish
+    homepage: https://github.com/up2jj/ajaj
+    description: Switch between isolated Claude Code and Codex account profiles
+    repository:
+      owner: up2jj
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser-bot@users.noreply.github.com
+    # Strip Gatekeeper's quarantine flag so the unsigned CLI runs after install.
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ajaj"]
