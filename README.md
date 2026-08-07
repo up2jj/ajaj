@@ -68,7 +68,7 @@ ajaj account add codex personal --login
 
 # Inspect profiles and change the default profile for each provider.
 ajaj account list
-ajaj account use claude work
+ajaj account default claude work
 ajaj account current
 
 # Usage-aware selection is enabled by default at 90%.

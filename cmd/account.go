@@ -15,7 +15,7 @@ func newAccountCmd(deps dependencies) *cobra.Command {
 	cmd.AddCommand(newAccountAddCmd(deps))
 	cmd.AddCommand(newAccountListCmd(deps))
 	cmd.AddCommand(newAccountCurrentCmd(deps))
-	cmd.AddCommand(newAccountUseCmd(deps))
+	cmd.AddCommand(newAccountDefaultCmd(deps))
 	cmd.AddCommand(newAccountAutoCmd(deps))
 	return cmd
 }
@@ -160,9 +160,9 @@ func newAccountAutoCmd(deps dependencies) *cobra.Command {
 	return cmd
 }
 
-func newAccountUseCmd(deps dependencies) *cobra.Command {
+func newAccountDefaultCmd(deps dependencies) *cobra.Command {
 	return &cobra.Command{
-		Use:   "use <claude|codex> <name>",
+		Use:   "default <claude|codex> <name>",
 		Short: "Set the default profile for a provider",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {

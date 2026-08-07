@@ -41,7 +41,7 @@ func TestAccountCommands(t *testing.T) {
 	}{
 		{"add", []string{"account", "add", "claude", "personal"}, "Added claude/personal"},
 		{"add second", []string{"account", "add", "claude", "work"}, "Added claude/work"},
-		{"use", []string{"account", "use", "claude", "work"}, "Default claude profile: work"},
+		{"default", []string{"account", "default", "claude", "work"}, "Default claude profile: work"},
 		{"auto", []string{"account", "auto", "on", "--threshold", "80"}, "switch at 80%"},
 		{"current", []string{"account", "current", "claude"}, "default=work  last-selected=never launched"},
 		{"list", []string{"account", "list"}, "* claude   work"},
