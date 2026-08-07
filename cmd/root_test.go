@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,11 +20,13 @@ type fakeRunner struct {
 	account account.Account
 	args    []string
 	login   bool
+	runErr  error
 }
 
 type fakeSplitLauncher struct {
 	name      string
 	renamed   string
+	cleared   int
 	direction multiplexer.Direction
 	command   multiplexer.Command
 }
@@ -32,6 +35,11 @@ func (l *fakeSplitLauncher) Name() string { return l.name }
 
 func (l *fakeSplitLauncher) RenameCurrent(_ context.Context, title string) error {
 	l.renamed = title
+	return nil
+}
+
+func (l *fakeSplitLauncher) ClearCurrentTitle(context.Context) error {
+	l.cleared++
 	return nil
 }
 
@@ -44,7 +52,7 @@ func (l *fakeSplitLauncher) Split(_ context.Context, direction multiplexer.Direc
 func (r *fakeRunner) Run(_ context.Context, a account.Account, args ...string) error {
 	r.account = a
 	r.args = append([]string(nil), args...)
-	return nil
+	return r.runErr
 }
 
 func (r *fakeRunner) Login(_ context.Context, a account.Account) error {
@@ -196,7 +204,7 @@ func TestPickerSplitLaunchesCurrentBinaryThroughMultiplexer(t *testing.T) {
 	if launcher.command.Title != "ajaj: codex/personal" {
 		t.Fatalf("command title = %q", launcher.command.Title)
 	}
-	if got := strings.Join(launcher.command.Args, "|"); got != "run|codex|personal" {
+	if got := strings.Join(launcher.command.Args, "|"); got != "_run-pane|codex|personal" {
 		t.Fatalf("command args = %q", got)
 	}
 }
@@ -219,8 +227,31 @@ func TestPickerCurrentPaneRenamesBeforeAttachedLaunch(t *testing.T) {
 	if launcher.renamed != "ajaj: claude/work" {
 		t.Fatalf("renamed = %q", launcher.renamed)
 	}
+	if launcher.cleared != 1 {
+		t.Fatalf("title clear calls = %d, want 1", launcher.cleared)
+	}
 	if fake.account.ID() != "claude/work" {
 		t.Fatalf("launched account = %q", fake.account.ID())
+	}
+}
+
+func TestPickerCurrentPaneClearsTitleWhenLaunchFails(t *testing.T) {
+	rootDir := t.TempDir()
+	store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+	a, err := store.Add(account.Claude, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher := &fakeSplitLauncher{name: "tmux"}
+	launchErr := errors.New("agent failed")
+	deps := dependencies{store: store, runner: &fakeRunner{runErr: launchErr}, multiplexer: launcher}
+	command := newRootCmd(deps)
+	selection := &tui.LaunchSelection{Account: a, Destination: tui.CurrentPane}
+	if err := handlePickerResult(command, deps, tui.Model{Selection: selection}); !errors.Is(err, launchErr) {
+		t.Fatalf("launch error = %v, want %v", err, launchErr)
+	}
+	if launcher.cleared != 1 {
+		t.Fatalf("title clear calls = %d, want 1", launcher.cleared)
 	}
 }
 

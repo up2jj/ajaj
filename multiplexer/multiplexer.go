@@ -95,6 +95,36 @@ func (c *Client) RenameCurrent(ctx context.Context, title string) error {
 	return nil
 }
 
+// ClearCurrentTitle removes the ajaj-assigned title from the pane or surface.
+// Cleanup uses a context detached from launch cancellation so Ctrl+C does not
+// leave the pane named after an agent that has already exited.
+func (c *Client) ClearCurrentTitle(ctx context.Context) error {
+	cleanupCtx, cancel := cleanupContext(ctx)
+	defer cancel()
+
+	var err error
+	switch c.kind {
+	case Tmux:
+		_, err = c.runner.Run(cleanupCtx, c.binary, "select-pane", "-t", c.env["TMUX_PANE"], "-T", "")
+	case Zellij:
+		args := []string{"action", "undo-rename-pane"}
+		if paneID := c.env["ZELLIJ_PANE_ID"]; paneID != "" {
+			args = append(args, "--pane-id", paneID)
+		}
+		_, err = c.runner.Run(cleanupCtx, c.binary, c.zellijArgs(args...)...)
+	case Herdr:
+		_, err = c.runner.Run(cleanupCtx, c.binary, "pane", "rename", c.env["HERDR_PANE_ID"], "--clear")
+	case Cmux:
+		_, err = c.runner.Run(cleanupCtx, c.binary, "rename-tab", "--workspace", c.env["CMUX_WORKSPACE_ID"], "--surface", c.env["CMUX_SURFACE_ID"], "")
+	default:
+		return fmt.Errorf("unsupported multiplexer %q", c.kind)
+	}
+	if err != nil {
+		return fmt.Errorf("clearing current pane title in %s: %w", c.kind, err)
+	}
+	return nil
+}
+
 // Detect returns the highest-priority supported multiplexer indicated by the
 // environment, provided its control binary is available. Pane-aware backends
 // take precedence over tmux, whose variables are commonly inherited by nested

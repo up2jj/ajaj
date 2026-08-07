@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -40,6 +41,22 @@ func newRunCmd(deps dependencies) *cobra.Command {
 	return cmd
 }
 
+func newManagedRunCmd(deps dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:                "_run-pane <claude|codex> <name> [provider arguments...]",
+		Hidden:             true,
+		DisableFlagParsing: true,
+		Args:               cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := findAccount(deps, args[0], args[1])
+			if err != nil {
+				return err
+			}
+			return runAccountInManagedPane(cmd, deps, a, args[2:]...)
+		},
+	}
+}
+
 func newProviderCmd(deps dependencies, provider account.Provider) *cobra.Command {
 	return &cobra.Command{
 		Use:                string(provider) + " [arguments...]",
@@ -77,6 +94,14 @@ func runAccount(cmd *cobra.Command, deps dependencies, a account.Account, args .
 		return err
 	}
 	return deps.runner.Run(cmd.Context(), a, args...)
+}
+
+func runAccountInManagedPane(cmd *cobra.Command, deps dependencies, a account.Account, args ...string) error {
+	runErr := runAccount(cmd, deps, a, args...)
+	if deps.multiplexer == nil {
+		return runErr
+	}
+	return errors.Join(runErr, deps.multiplexer.ClearCurrentTitle(cmd.Context()))
 }
 
 func findAccount(deps dependencies, providerName, name string) (account.Account, error) {

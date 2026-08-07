@@ -261,3 +261,29 @@ func TestRenameCurrentUsesBackendNativeTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestClearCurrentTitleUsesBackendNativeReset(t *testing.T) {
+	tests := []struct {
+		name string
+		kind Kind
+		env  map[string]string
+		want []string
+	}{
+		{"tmux", Tmux, map[string]string{"TMUX_PANE": "%4"}, []string{"select-pane", "-t", "%4", "-T", ""}},
+		{"zellij", Zellij, map[string]string{"ZELLIJ_SESSION_NAME": "work", "ZELLIJ_PANE_ID": "terminal_3"}, []string{"--session", "work", "action", "undo-rename-pane", "--pane-id", "terminal_3"}},
+		{"herdr", Herdr, map[string]string{"HERDR_PANE_ID": "pane-2"}, []string{"pane", "rename", "pane-2", "--clear"}},
+		{"cmux", Cmux, map[string]string{"CMUX_WORKSPACE_ID": "workspace:1", "CMUX_SURFACE_ID": "surface:2"}, []string{"rename-tab", "--workspace", "workspace:1", "--surface", "surface:2", ""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := new(fakeCommandRunner)
+			client := &Client{kind: tt.kind, binary: "/bin/" + string(tt.kind), env: tt.env, runner: runner}
+			if err := client.ClearCurrentTitle(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(runner.calls) != 1 || !slices.Equal(runner.calls[0].args, tt.want) {
+				t.Fatalf("calls = %#v, want %#v", runner.calls, tt.want)
+			}
+		})
+	}
+}

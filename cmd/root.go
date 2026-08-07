@@ -40,6 +40,7 @@ type accountRunner interface {
 type splitLauncher interface {
 	Name() string
 	RenameCurrent(context.Context, string) error
+	ClearCurrentTitle(context.Context) error
 	Split(context.Context, multiplexer.Direction, multiplexer.Command) error
 }
 
@@ -118,6 +119,7 @@ func newRootCmd(deps dependencies) *cobra.Command {
 	root.AddCommand(newAccountCmd(deps))
 	root.AddCommand(newLoginCmd(deps))
 	root.AddCommand(newRunCmd(deps))
+	root.AddCommand(newManagedRunCmd(deps))
 	root.AddCommand(newUsageCmd(deps))
 	root.AddCommand(newProviderCmd(deps, account.Claude))
 	root.AddCommand(newProviderCmd(deps, account.Codex))
@@ -147,7 +149,7 @@ func handlePickerResult(cmd *cobra.Command, deps dependencies, model tui.Model) 
 				return err
 			}
 		}
-		return runAccount(cmd, deps, selection.Account)
+		return runAccountInManagedPane(cmd, deps, selection.Account)
 	}
 	if deps.multiplexer == nil {
 		return fmt.Errorf("cannot open %s: no multiplexer is available", selection.Destination.Label())
@@ -174,7 +176,7 @@ func handlePickerResult(cmd *cobra.Command, deps dependencies, model tui.Model) 
 	}
 	launch := multiplexer.Command{
 		Path:  path,
-		Args:  []string{"run", string(selection.Account.Provider), selection.Account.Name},
+		Args:  []string{"_run-pane", string(selection.Account.Provider), selection.Account.Name},
 		Dir:   dir,
 		Title: title,
 	}
