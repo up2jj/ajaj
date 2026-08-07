@@ -115,6 +115,29 @@ The picker marks each provider's default profile and offers four actions:
 - `x` opens a deletion confirmation for the highlighted profile.
 - `q`, `esc`, or `ctrl+c` exits without making changes.
 
+When `ajaj` is running inside a supported terminal multiplexer, `enter` opens a
+second selector with three destinations: the current pane, a split to the
+right, or a split below. The current pane is selected initially. Use the same
+arrow or `j`/`k` navigation, press `enter` to launch, or press `esc` to return
+to the account list. A split receives focus immediately and starts in the same
+working directory; the original pane returns to its shell.
+The selected pane or surface is named `ajaj: <provider>/<account>` for both
+current-pane launches and newly created splits.
+
+Multiplexer support currently includes tmux, cmux, Herdr, and Zellij. Detection
+requires both an environment marker for the current pane/session and the
+matching control binary on `PATH`:
+
+- tmux: `TMUX` and `TMUX_PANE`
+- cmux: `CMUX_WORKSPACE_ID` and `CMUX_SURFACE_ID`
+- Herdr: `HERDR_PANE_ID`
+- Zellij: `ZELLIJ`
+
+Pane-aware markers take precedence over inherited tmux markers in nested
+setups. If no supported multiplexer is detected, the picker launches directly
+as before. The destination selector applies only to the interactive picker;
+`ajaj run`, `ajaj claude`, and `ajaj codex` always run in the current pane.
+
 ## Deleting and recovering profiles
 
 Both `ajaj account delete <provider> <name>` and the picker's `x` action show a

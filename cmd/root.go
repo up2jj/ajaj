@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/up2jj/ajaj/account"
+	"github.com/up2jj/ajaj/multiplexer"
 	"github.com/up2jj/ajaj/provider"
 	"github.com/up2jj/ajaj/runner"
 	"github.com/up2jj/ajaj/tui"
@@ -25,12 +26,21 @@ type dependencies struct {
 	store         *account.Store
 	runner        accountRunner
 	usage         usageManager
+	multiplexer   splitLauncher
+	executable    func() (string, error)
+	workingDir    func() (string, error)
 	confirmDelete func(context.Context, account.Account) (bool, error)
 }
 
 type accountRunner interface {
 	Run(context.Context, account.Account, ...string) error
 	Login(context.Context, account.Account) error
+}
+
+type splitLauncher interface {
+	Name() string
+	RenameCurrent(context.Context, string) error
+	Split(context.Context, multiplexer.Direction, multiplexer.Command) error
 }
 
 type usageManager interface {
@@ -51,7 +61,7 @@ func NewRootCmd() *cobra.Command {
 	if err != nil {
 		return brokenRoot(err)
 	}
-	return newRootCmd(dependencies{
+	deps := dependencies{
 		store: account.NewStore(registryPath, accountsDir),
 		runner: runner.Runner{
 			In:  os.Stdin,
@@ -60,8 +70,14 @@ func NewRootCmd() *cobra.Command {
 			Env: provider.BaseEnvironment(),
 		},
 		usage:         usageManager,
+		executable:    os.Executable,
+		workingDir:    os.Getwd,
 		confirmDelete: confirmAccountDeletion,
-	})
+	}
+	if client, ok := multiplexer.Detect(provider.BaseEnvironment()); ok {
+		deps.multiplexer = client
+	}
+	return newRootCmd(deps)
 }
 
 func newRootCmd(deps dependencies) *cobra.Command {
@@ -82,7 +98,11 @@ func newRootCmd(deps dependencies) *cobra.Command {
 				return nil
 			}
 
-			program := tea.NewProgram(tui.New(registry.Accounts, registry.Default))
+			multiplexerName := ""
+			if deps.multiplexer != nil {
+				multiplexerName = deps.multiplexer.Name()
+			}
+			program := tea.NewProgram(tui.NewWithMultiplexer(registry.Accounts, registry.Default, multiplexerName))
 			final, err := program.Run()
 			if err != nil {
 				return fmt.Errorf("running account picker: %w", err)
@@ -116,10 +136,60 @@ func handlePickerResult(cmd *cobra.Command, deps dependencies, model tui.Model) 
 		fmt.Fprintf(cmd.OutOrStdout(), "Default %s profile: %s\n", a.Provider, a.Name)
 		return nil
 	}
-	if model.Selected == nil {
+	if model.Selection == nil {
 		return nil
 	}
-	return runAccount(cmd, deps, *model.Selected)
+	selection := *model.Selection
+	title := "ajaj: " + selection.Account.ID()
+	if selection.Destination == tui.CurrentPane {
+		if deps.multiplexer != nil {
+			if err := deps.multiplexer.RenameCurrent(cmd.Context(), title); err != nil {
+				return err
+			}
+		}
+		return runAccount(cmd, deps, selection.Account)
+	}
+	if deps.multiplexer == nil {
+		return fmt.Errorf("cannot open %s: no multiplexer is available", selection.Destination.Label())
+	}
+	direction, err := splitDirection(selection.Destination)
+	if err != nil {
+		return err
+	}
+	executable := deps.executable
+	if executable == nil {
+		executable = os.Executable
+	}
+	path, err := executable()
+	if err != nil {
+		return fmt.Errorf("locating ajaj executable: %w", err)
+	}
+	workingDir := deps.workingDir
+	if workingDir == nil {
+		workingDir = os.Getwd
+	}
+	dir, err := workingDir()
+	if err != nil {
+		return fmt.Errorf("determining current directory: %w", err)
+	}
+	launch := multiplexer.Command{
+		Path:  path,
+		Args:  []string{"run", string(selection.Account.Provider), selection.Account.Name},
+		Dir:   dir,
+		Title: title,
+	}
+	return deps.multiplexer.Split(cmd.Context(), direction, launch)
+}
+
+func splitDirection(destination tui.Destination) (multiplexer.Direction, error) {
+	switch destination {
+	case tui.SplitRight:
+		return multiplexer.Right, nil
+	case tui.SplitDown:
+		return multiplexer.Down, nil
+	default:
+		return "", fmt.Errorf("unsupported launch destination %q", destination)
+	}
 }
 
 func confirmAccountDeletion(ctx context.Context, a account.Account) (bool, error) {

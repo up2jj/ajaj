@@ -45,8 +45,8 @@ func TestDefaultKeyRequestsDefaultWithoutLaunch(t *testing.T) {
 	if got.DefaultRequested == nil || got.DefaultRequested.Name != "work" {
 		t.Fatalf("DefaultRequested = %#v, want work", got.DefaultRequested)
 	}
-	if got.Selected != nil {
-		t.Fatalf("Selected = %#v, want no launch", got.Selected)
+	if got.Selection != nil {
+		t.Fatalf("Selection = %#v, want no launch", got.Selection)
 	}
 }
 
@@ -74,7 +74,66 @@ func TestDeleteKeyRequestsDeleteWithoutLaunch(t *testing.T) {
 	if got.DeleteRequested == nil || got.DeleteRequested.Name != "work" {
 		t.Fatalf("DeleteRequested = %#v, want work", got.DeleteRequested)
 	}
-	if got.Selected != nil || got.DefaultRequested != nil {
+	if got.Selection != nil || got.DefaultRequested != nil {
 		t.Fatalf("delete also requested another action: %#v", got)
+	}
+}
+
+func TestEnterLaunchesImmediatelyWithoutMultiplexer(t *testing.T) {
+	model := New([]account.Account{{Provider: account.Codex, Name: "work"}}, nil)
+	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	got := updated.(Model)
+	if cmd == nil || got.Selection == nil {
+		t.Fatalf("enter result = %#v, command %v", got.Selection, cmd)
+	}
+	if got.Selection.Account.ID() != "codex/work" || got.Selection.Destination != CurrentPane {
+		t.Fatalf("Selection = %#v", got.Selection)
+	}
+}
+
+func TestMultiplexerUsesTwoStepDestinationPicker(t *testing.T) {
+	model := NewWithMultiplexer([]account.Account{{Provider: account.Claude, Name: "work"}}, nil, "tmux")
+	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = updated.(Model)
+	if cmd != nil || model.pending == nil || model.Selection != nil {
+		t.Fatalf("account enter = pending:%#v selection:%#v command:%v", model.pending, model.Selection, cmd)
+	}
+	if view := model.View().Content; !strings.Contains(view, "Open claude/work with tmux") || !strings.Contains(view, "Open in current pane") {
+		t.Fatalf("destination view = %q", view)
+	}
+
+	updated, _ = model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyDown}))
+	model = updated.(Model)
+	updated, cmd = model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	got := updated.(Model)
+	if cmd == nil || got.Selection == nil || got.Selection.Destination != SplitRight {
+		t.Fatalf("destination enter = selection:%#v command:%v", got.Selection, cmd)
+	}
+}
+
+func TestDestinationEscapeReturnsToAccounts(t *testing.T) {
+	model := NewWithMultiplexer([]account.Account{{Provider: account.Claude, Name: "work"}}, nil, "zellij")
+	updated, _ := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = updated.(Model)
+	updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}))
+	got := updated.(Model)
+	if cmd != nil || got.pending != nil || got.Selection != nil {
+		t.Fatalf("escape result = pending:%#v selection:%#v command:%v", got.pending, got.Selection, cmd)
+	}
+	if !strings.Contains(got.View().Content, "choose an AI coding account") {
+		t.Fatalf("account view not restored: %q", got.View().Content)
+	}
+}
+
+func TestAccountActionsAreIgnoredOnDestinationScreen(t *testing.T) {
+	model := NewWithMultiplexer([]account.Account{{Provider: account.Claude, Name: "work"}}, nil, "herdr")
+	updated, _ := model.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	model = updated.(Model)
+	for _, key := range []rune{'d', 'x'} {
+		updated, cmd := model.Update(tea.KeyPressMsg(tea.Key{Text: string(key), Code: key}))
+		got := updated.(Model)
+		if cmd != nil || got.DefaultRequested != nil || got.DeleteRequested != nil {
+			t.Fatalf("key %q triggered account action: %#v", key, got)
+		}
 	}
 }

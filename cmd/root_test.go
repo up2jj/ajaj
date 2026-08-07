@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/up2jj/ajaj/account"
+	"github.com/up2jj/ajaj/multiplexer"
 	"github.com/up2jj/ajaj/tui"
 	usagepkg "github.com/up2jj/ajaj/usage"
 )
@@ -18,6 +19,26 @@ type fakeRunner struct {
 	account account.Account
 	args    []string
 	login   bool
+}
+
+type fakeSplitLauncher struct {
+	name      string
+	renamed   string
+	direction multiplexer.Direction
+	command   multiplexer.Command
+}
+
+func (l *fakeSplitLauncher) Name() string { return l.name }
+
+func (l *fakeSplitLauncher) RenameCurrent(_ context.Context, title string) error {
+	l.renamed = title
+	return nil
+}
+
+func (l *fakeSplitLauncher) Split(_ context.Context, direction multiplexer.Direction, command multiplexer.Command) error {
+	l.direction = direction
+	l.command = command
+	return nil
 }
 
 func (r *fakeRunner) Run(_ context.Context, a account.Account, args ...string) error {
@@ -100,7 +121,7 @@ func TestPickerActionsSeparateLaunchFromDefault(t *testing.T) {
 		{
 			name: "launch once",
 			model: func(a account.Account) tui.Model {
-				return tui.Model{Selected: &a}
+				return tui.Model{Selection: &tui.LaunchSelection{Account: a, Destination: tui.CurrentPane}}
 			},
 			wantDefault: "work",
 			wantLast:    "personal",
@@ -139,6 +160,67 @@ func TestPickerActionsSeparateLaunchFromDefault(t *testing.T) {
 				t.Fatalf("launched = %t, want %t", launched, test.wantLaunch)
 			}
 		})
+	}
+}
+
+func TestPickerSplitLaunchesCurrentBinaryThroughMultiplexer(t *testing.T) {
+	rootDir := t.TempDir()
+	store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+	a, err := store.Add(account.Codex, "personal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher := &fakeSplitLauncher{name: "zellij"}
+	fake := new(fakeRunner)
+	deps := dependencies{
+		store:       store,
+		runner:      fake,
+		multiplexer: launcher,
+		executable:  func() (string, error) { return "/opt/bin/ajaj", nil },
+		workingDir:  func() (string, error) { return "/project root", nil },
+	}
+	command := newRootCmd(deps)
+	selection := &tui.LaunchSelection{Account: a, Destination: tui.SplitDown}
+	if err := handlePickerResult(command, deps, tui.Model{Selection: selection}); err != nil {
+		t.Fatal(err)
+	}
+	if fake.account.Name != "" {
+		t.Fatalf("attached runner launched %#v", fake.account)
+	}
+	if launcher.direction != multiplexer.Down {
+		t.Fatalf("direction = %q, want down", launcher.direction)
+	}
+	if launcher.command.Path != "/opt/bin/ajaj" || launcher.command.Dir != "/project root" {
+		t.Fatalf("command = %#v", launcher.command)
+	}
+	if launcher.command.Title != "ajaj: codex/personal" {
+		t.Fatalf("command title = %q", launcher.command.Title)
+	}
+	if got := strings.Join(launcher.command.Args, "|"); got != "run|codex|personal" {
+		t.Fatalf("command args = %q", got)
+	}
+}
+
+func TestPickerCurrentPaneRenamesBeforeAttachedLaunch(t *testing.T) {
+	rootDir := t.TempDir()
+	store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+	a, err := store.Add(account.Claude, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	launcher := &fakeSplitLauncher{name: "herdr"}
+	fake := new(fakeRunner)
+	deps := dependencies{store: store, runner: fake, multiplexer: launcher}
+	command := newRootCmd(deps)
+	selection := &tui.LaunchSelection{Account: a, Destination: tui.CurrentPane}
+	if err := handlePickerResult(command, deps, tui.Model{Selection: selection}); err != nil {
+		t.Fatal(err)
+	}
+	if launcher.renamed != "ajaj: claude/work" {
+		t.Fatalf("renamed = %q", launcher.renamed)
+	}
+	if fake.account.ID() != "claude/work" {
+		t.Fatalf("launched account = %q", fake.account.ID())
 	}
 }
 
@@ -260,6 +342,27 @@ func TestProviderCommandForwardsArgumentsToDefaultAccount(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "default=work  last-selected=work") {
 		t.Fatalf("account current output = %q", out.String())
+	}
+}
+
+func TestRunCommandRecordsExplicitAccountForSplitChild(t *testing.T) {
+	rootDir := t.TempDir()
+	store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+	if _, err := store.Add(account.Codex, "personal"); err != nil {
+		t.Fatal(err)
+	}
+	fake := new(fakeRunner)
+	root := newRootCmd(dependencies{store: store, runner: fake})
+	root.SetArgs([]string{"run", "codex", "personal"})
+	if err := root.ExecuteContext(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake.account.ID() != "codex/personal" || registry.LastSelected[account.Codex] != "personal" {
+		t.Fatalf("account/last-selected = %q/%q", fake.account.ID(), registry.LastSelected[account.Codex])
 	}
 }
 
