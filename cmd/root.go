@@ -83,10 +83,10 @@ func newRootCmd(deps dependencies) *cobra.Command {
 				return fmt.Errorf("running account picker: %w", err)
 			}
 			model, ok := final.(tui.Model)
-			if !ok || model.Selected == nil {
+			if !ok {
 				return nil
 			}
-			return runAccount(cmd, deps, *model.Selected)
+			return handlePickerResult(cmd, deps, model)
 		},
 	}
 
@@ -97,6 +97,21 @@ func newRootCmd(deps dependencies) *cobra.Command {
 	root.AddCommand(newProviderCmd(deps, account.Claude))
 	root.AddCommand(newProviderCmd(deps, account.Codex))
 	return root
+}
+
+func handlePickerResult(cmd *cobra.Command, deps dependencies, model tui.Model) error {
+	if model.DefaultRequested != nil {
+		a := *model.DefaultRequested
+		if err := deps.store.SetDefault(a.Provider, a.Name); err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Default %s profile: %s\n", a.Provider, a.Name)
+		return nil
+	}
+	if model.Selected == nil {
+		return nil
+	}
+	return runAccount(cmd, deps, *model.Selected)
 }
 
 func brokenRoot(initErr error) *cobra.Command {

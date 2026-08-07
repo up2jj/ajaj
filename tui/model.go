@@ -18,11 +18,12 @@ var (
 )
 
 type Model struct {
-	accounts []account.Account
-	defaults map[account.Provider]string
-	cursor   int
-	width    int
-	Selected *account.Account
+	accounts         []account.Account
+	defaults         map[account.Provider]string
+	cursor           int
+	width            int
+	Selected         *account.Account
+	DefaultRequested *account.Account
 }
 
 func New(accounts []account.Account, defaults map[account.Provider]string) Model {
@@ -53,6 +54,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Selected = &selected
 				return m, tea.Quit
 			}
+		case "d":
+			if len(m.accounts) > 0 {
+				selected := m.accounts[m.cursor]
+				m.DefaultRequested = &selected
+				return m, tea.Quit
+			}
 		}
 	}
 	return m, nil
@@ -78,7 +85,7 @@ func (m Model) View() tea.View {
 		b.WriteByte('\n')
 	}
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("↑/k ↓/j move  •  enter launch  •  q quit"))
+	b.WriteString(dimStyle.Render("↑/k ↓/j move  •  enter launch  •  d set default  •  q quit"))
 	if m.width > 0 && m.width < 50 {
 		b.WriteString("\n")
 	}

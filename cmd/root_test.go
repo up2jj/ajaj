@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/up2jj/ajaj/account"
+	"github.com/up2jj/ajaj/tui"
 	usagepkg "github.com/up2jj/ajaj/usage"
 )
 
@@ -77,6 +78,66 @@ func TestEmptyRootExplainsNextStep(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "ajaj account add") {
 		t.Fatalf("output = %q, want add-account hint", out)
+	}
+}
+
+func TestPickerActionsSeparateLaunchFromDefault(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		model       func(account.Account) tui.Model
+		wantDefault string
+		wantLast    string
+		wantLaunch  bool
+	}{
+		{
+			name: "set default",
+			model: func(a account.Account) tui.Model {
+				return tui.Model{DefaultRequested: &a}
+			},
+			wantDefault: "personal",
+		},
+		{
+			name: "launch once",
+			model: func(a account.Account) tui.Model {
+				return tui.Model{Selected: &a}
+			},
+			wantDefault: "work",
+			wantLast:    "personal",
+			wantLaunch:  true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rootDir := t.TempDir()
+			store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+			if _, err := store.Add(account.Claude, "work"); err != nil {
+				t.Fatal(err)
+			}
+			personal, err := store.Add(account.Claude, "personal")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fake := new(fakeRunner)
+			deps := dependencies{store: store, runner: fake}
+			command := newRootCmd(deps)
+			command.SetOut(new(bytes.Buffer))
+
+			if err := handlePickerResult(command, deps, test.model(personal)); err != nil {
+				t.Fatal(err)
+			}
+			registry, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := registry.Default[account.Claude]; got != test.wantDefault {
+				t.Fatalf("default = %q, want %q", got, test.wantDefault)
+			}
+			if got := registry.LastSelected[account.Claude]; got != test.wantLast {
+				t.Fatalf("last selected = %q, want %q", got, test.wantLast)
+			}
+			if launched := fake.account.Name != ""; launched != test.wantLaunch {
+				t.Fatalf("launched = %t, want %t", launched, test.wantLaunch)
+			}
+		})
 	}
 }
 

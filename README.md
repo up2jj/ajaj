@@ -86,7 +86,7 @@ ajaj codex --full-auto
 # Run an explicit account without changing the default selection.
 ajaj run claude personal --model sonnet
 
-# Open the interactive picker for a one-off launch without changing the default.
+# Open the interactive picker. Enter launches once; d sets the default.
 ajaj
 ```
 
