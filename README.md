@@ -166,10 +166,17 @@ just                 # list recipes
 just build           # build ./ajaj
 just install         # install with the current git version
 just test            # run tests
+just hooks           # install git hooks via prek
 just ci              # formatting, vet, tests, and GoReleaser validation
 just snapshot        # build a local release into ./dist
 just release 0.1.0   # tag and push v0.1.0
 ```
+
+Git hooks are managed with [prek](https://prek.j178.dev) (`brew install prek`),
+configured in [`prek.toml`](prek.toml). Install them once with `just hooks` —
+commits then run gofmt, go vet, a `go mod tidy` check, and file hygiene checks;
+pushes additionally run the full test suite. Run all hooks manually with
+`prek run --all-files`.
 
 ## Release
 

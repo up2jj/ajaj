@@ -40,6 +40,10 @@ fmt-check:
 tidy:
     go mod tidy
 
+# Install git hooks via prek (pre-commit + pre-push).
+hooks:
+    prek install --hook-type pre-commit --hook-type pre-push
+
 # Run ajaj (pass provider arguments after --, e.g. `just run -- claude --model opus`).
 run *args:
     go run . {{ args }}
