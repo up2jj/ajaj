@@ -37,6 +37,24 @@ func TestStoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStoreDelete(t *testing.T) {
+	store := NewStore(t.TempDir())
+	a := account.Account{Provider: account.Claude, Name: "work"}
+	snapshot := Snapshot{Provider: a.Provider, Account: a.Name, Source: "test", UpdatedAt: time.Now()}
+	if err := store.Write(a, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(a); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := store.Read(a); err != nil || ok {
+		t.Fatalf("Read() after delete = ok:%v err:%v", ok, err)
+	}
+	if err := store.Delete(a); err != nil {
+		t.Fatalf("second Delete() = %v", err)
+	}
+}
+
 func TestDefaultRootUsesXDGStateHome(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", root)

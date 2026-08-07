@@ -177,6 +177,61 @@ func (s *Store) SetDefault(provider Provider, name string) error {
 	return s.Save(registry)
 }
 
+func (s *Store) Delete(provider Provider, name string) (Account, string, error) {
+	if !provider.Valid() {
+		return Account{}, "", fmt.Errorf("unsupported provider %q", provider)
+	}
+	if !validName.MatchString(name) {
+		return Account{}, "", errors.New("invalid account name")
+	}
+
+	registry, err := s.Load()
+	if err != nil {
+		return Account{}, "", err
+	}
+	a, exists := registry.Find(provider, name)
+	if !exists {
+		return Account{}, "", fmt.Errorf("account %s/%s does not exist", provider, name)
+	}
+	expectedHome := filepath.Join(s.accountsDir, string(provider), name)
+	if filepath.Clean(a.Home) != filepath.Clean(expectedHome) {
+		return Account{}, "", fmt.Errorf("refusing to delete %s: profile home is outside its managed location", a.ID())
+	}
+
+	trashRoot := filepath.Join(s.accountsDir, ".trash")
+	if err := os.MkdirAll(trashRoot, 0o700); err != nil {
+		return Account{}, "", fmt.Errorf("creating profile trash: %w", err)
+	}
+	trashPath, err := os.MkdirTemp(trashRoot, string(provider)+"-"+name+"-")
+	if err != nil {
+		return Account{}, "", fmt.Errorf("allocating profile trash path: %w", err)
+	}
+	if err := os.Remove(trashPath); err != nil {
+		return Account{}, "", fmt.Errorf("preparing profile trash path: %w", err)
+	}
+	if err := os.Rename(expectedHome, trashPath); err != nil {
+		return Account{}, "", fmt.Errorf("moving %s to profile trash: %w", a.ID(), err)
+	}
+
+	for i, candidate := range registry.Accounts {
+		if candidate.Provider == provider && candidate.Name == name {
+			registry.Accounts = slices.Delete(registry.Accounts, i, i+1)
+			break
+		}
+	}
+	if registry.Default[provider] == name {
+		delete(registry.Default, provider)
+	}
+	if registry.LastSelected[provider] == name {
+		delete(registry.LastSelected, provider)
+	}
+	if err := s.Save(registry); err != nil {
+		rollbackErr := os.Rename(trashPath, expectedHome)
+		return Account{}, "", errors.Join(err, rollbackErr)
+	}
+	return a, trashPath, nil
+}
+
 func (s *Store) SetLastSelected(provider Provider, name string) error {
 	registry, err := s.Load()
 	if err != nil {

@@ -24,6 +24,7 @@ type Model struct {
 	width            int
 	Selected         *account.Account
 	DefaultRequested *account.Account
+	DeleteRequested  *account.Account
 }
 
 func New(accounts []account.Account, defaults map[account.Provider]string) Model {
@@ -60,6 +61,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.DefaultRequested = &selected
 				return m, tea.Quit
 			}
+		case "x":
+			if len(m.accounts) > 0 {
+				selected := m.accounts[m.cursor]
+				m.DeleteRequested = &selected
+				return m, tea.Quit
+			}
 		}
 	}
 	return m, nil
@@ -85,7 +92,7 @@ func (m Model) View() tea.View {
 		b.WriteByte('\n')
 	}
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("↑/k ↓/j move  •  enter launch  •  d set default  •  q quit"))
+	b.WriteString(dimStyle.Render("↑/k ↓/j move  •  enter launch  •  d set default  •  x delete  •  q quit"))
 	if m.width > 0 && m.width < 50 {
 		b.WriteString("\n")
 	}

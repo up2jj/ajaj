@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -138,6 +139,88 @@ func TestPickerActionsSeparateLaunchFromDefault(t *testing.T) {
 				t.Fatalf("launched = %t, want %t", launched, test.wantLaunch)
 			}
 		})
+	}
+}
+
+func TestDeleteCommandConfirmsBeforeDeleting(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		confirmed bool
+		wantFound bool
+		wantText  string
+	}{
+		{name: "cancel", confirmed: false, wantFound: true, wantText: "Deletion cancelled."},
+		{name: "confirm", confirmed: true, wantFound: false, wantText: "Deleted claude/work."},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rootDir := t.TempDir()
+			store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+			a, err := store.Add(account.Claude, "work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			confirmCalls := 0
+			deps := dependencies{
+				store: store,
+				confirmDelete: func(context.Context, account.Account) (bool, error) {
+					confirmCalls++
+					return test.confirmed, nil
+				},
+			}
+			out := new(bytes.Buffer)
+			root := newRootCmd(deps)
+			root.SetOut(out)
+			root.SetArgs([]string{"account", "delete", "claude", "work"})
+			if err := root.ExecuteContext(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if confirmCalls != 1 {
+				t.Fatalf("confirmation calls = %d, want 1", confirmCalls)
+			}
+			registry, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, found := registry.Find(account.Claude, "work")
+			if found != test.wantFound {
+				t.Fatalf("account found = %t, want %t", found, test.wantFound)
+			}
+			if !strings.Contains(out.String(), test.wantText) {
+				t.Fatalf("output = %q, want %q", out, test.wantText)
+			}
+			if test.confirmed {
+				if _, err := os.Stat(a.Home); !os.IsNotExist(err) {
+					t.Fatalf("deleted profile home still exists: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestPickerDeleteUsesConfirmedDeletion(t *testing.T) {
+	rootDir := t.TempDir()
+	store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
+	a, err := store.Add(account.Claude, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps := dependencies{
+		store: store,
+		confirmDelete: func(context.Context, account.Account) (bool, error) {
+			return true, nil
+		},
+	}
+	command := newRootCmd(deps)
+	command.SetOut(new(bytes.Buffer))
+	if err := handlePickerResult(command, deps, tui.Model{DeleteRequested: &a}); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, found := registry.Find(account.Claude, "work"); found {
+		t.Fatal("picker delete left account in registry")
 	}
 }
 

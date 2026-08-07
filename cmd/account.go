@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,6 +17,7 @@ func newAccountCmd(deps dependencies) *cobra.Command {
 	cmd.AddCommand(newAccountListCmd(deps))
 	cmd.AddCommand(newAccountCurrentCmd(deps))
 	cmd.AddCommand(newAccountDefaultCmd(deps))
+	cmd.AddCommand(newAccountDeleteCmd(deps))
 	cmd.AddCommand(newAccountAutoCmd(deps))
 	return cmd
 }
@@ -177,4 +179,44 @@ func newAccountDefaultCmd(deps dependencies) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newAccountDeleteCmd(deps dependencies) *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <claude|codex> <name>",
+		Short: "Delete an isolated account profile",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			a, err := findAccount(deps, args[0], args[1])
+			if err != nil {
+				return err
+			}
+			return deleteAccount(cmd, deps, a)
+		},
+	}
+}
+
+func deleteAccount(cmd *cobra.Command, deps dependencies, a account.Account) error {
+	if deps.confirmDelete == nil {
+		return errors.New("profile deletion confirmation is unavailable")
+	}
+	confirmed, err := deps.confirmDelete(cmd.Context(), a)
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Fprintln(cmd.OutOrStdout(), "Deletion cancelled.")
+		return nil
+	}
+	deleted, trashPath, err := deps.store.Delete(a.Provider, a.Name)
+	if err != nil {
+		return err
+	}
+	if deps.usage != nil {
+		if err := deps.usage.DeleteSnapshot(deleted); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "ajaj: could not delete usage snapshot: %v\n", err)
+		}
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "Deleted %s. Profile data moved to %s\n", deleted.ID(), trashPath)
+	return nil
 }

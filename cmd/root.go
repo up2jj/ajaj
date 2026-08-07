@@ -3,11 +3,13 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/huh/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/up2jj/ajaj/account"
@@ -20,9 +22,10 @@ import (
 var version = "dev"
 
 type dependencies struct {
-	store  *account.Store
-	runner accountRunner
-	usage  usageManager
+	store         *account.Store
+	runner        accountRunner
+	usage         usageManager
+	confirmDelete func(context.Context, account.Account) (bool, error)
 }
 
 type accountRunner interface {
@@ -36,6 +39,7 @@ type usageManager interface {
 	Refresh(context.Context, account.Account) (usagepkg.Snapshot, error)
 	RecordClaude(account.Account, io.Reader) (usagepkg.Snapshot, error)
 	EnsureClaudeCollector(account.Account) (bool, error)
+	DeleteSnapshot(account.Account) error
 }
 
 func NewRootCmd() *cobra.Command {
@@ -55,7 +59,8 @@ func NewRootCmd() *cobra.Command {
 			Err: os.Stderr,
 			Env: provider.BaseEnvironment(),
 		},
-		usage: usageManager,
+		usage:         usageManager,
+		confirmDelete: confirmAccountDeletion,
 	})
 }
 
@@ -100,6 +105,9 @@ func newRootCmd(deps dependencies) *cobra.Command {
 }
 
 func handlePickerResult(cmd *cobra.Command, deps dependencies, model tui.Model) error {
+	if model.DeleteRequested != nil {
+		return deleteAccount(cmd, deps, *model.DeleteRequested)
+	}
 	if model.DefaultRequested != nil {
 		a := *model.DefaultRequested
 		if err := deps.store.SetDefault(a.Provider, a.Name); err != nil {
@@ -112,6 +120,25 @@ func handlePickerResult(cmd *cobra.Command, deps dependencies, model tui.Model) 
 		return nil
 	}
 	return runAccount(cmd, deps, *model.Selected)
+}
+
+func confirmAccountDeletion(ctx context.Context, a account.Account) (bool, error) {
+	confirmed := false
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("Delete " + a.ID() + "?").
+			Description("The profile will be removed from ajaj and its data moved to trash.").
+			Affirmative("Delete").
+			Negative("Cancel").
+			Value(&confirmed),
+	))
+	if err := form.RunWithContext(ctx); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return false, nil
+		}
+		return false, fmt.Errorf("confirming profile deletion: %w", err)
+	}
+	return confirmed, nil
 }
 
 func brokenRoot(initErr error) *cobra.Command {

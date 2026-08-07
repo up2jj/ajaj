@@ -69,6 +69,7 @@ ajaj account add codex personal --login
 # Inspect profiles and change the default profile for each provider.
 ajaj account list
 ajaj account default claude work
+ajaj account delete claude personal
 ajaj account current
 
 # Usage-aware selection is enabled by default at 90%.
@@ -86,7 +87,7 @@ ajaj codex --full-auto
 # Run an explicit account without changing the default selection.
 ajaj run claude personal --model sonnet
 
-# Open the interactive picker. Enter launches once; d sets the default.
+# Open the interactive picker. Enter launches once; d sets the default; x deletes.
 ajaj
 ```
 
@@ -203,8 +204,8 @@ git push origin v0.1.0
 ## Deliberate MVP boundaries
 
 - The app manages terminal CLIs, not their IDE extensions or desktop apps.
-- Account deletion is omitted until it has an explicit confirmation and a
-  recoverable trash-based implementation.
+- Account deletion requires explicit confirmation and moves profile data into
+  the profiles `.trash` directory so it can be recovered manually.
 - The registry is safe against partial writes, but simultaneous mutations from
   multiple `ajaj` processes are not serialized yet.
 - Usage is read only from provider-supported surfaces and cached as local

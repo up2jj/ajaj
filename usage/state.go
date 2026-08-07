@@ -106,6 +106,13 @@ func (s *Store) Write(a account.Account, snapshot Snapshot) error {
 	return atomicWrite(s.path(a), data, 0o600)
 }
 
+func (s *Store) Delete(a account.Account) error {
+	if err := os.Remove(s.path(a)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("deleting usage for %s: %w", a.ID(), err)
+	}
+	return nil
+}
+
 func (s *Store) path(a account.Account) string {
 	return filepath.Join(s.root, string(a.Provider), a.Name+".json")
 }

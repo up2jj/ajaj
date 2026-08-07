@@ -35,6 +35,10 @@ func (m *Manager) Snapshot(a account.Account) (Snapshot, bool, error) {
 	return m.store.Read(a)
 }
 
+func (m *Manager) DeleteSnapshot(a account.Account) error {
+	return m.store.Delete(a)
+}
+
 func (m *Manager) Refresh(ctx context.Context, a account.Account) (Snapshot, error) {
 	if a.Provider != account.Codex {
 		return Snapshot{}, fmt.Errorf("live refresh is not available for %s", a.Provider)

@@ -2,6 +2,7 @@ package account
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,73 @@ func TestStoreRejectsInvalidAndDuplicateAccounts(t *testing.T) {
 	}
 	if _, err := store.Add(Claude, "work"); err == nil {
 		t.Fatal("Add() accepted duplicate account")
+	}
+}
+
+func TestDeleteMovesProfileToTrashAndClearsSelection(t *testing.T) {
+	root := t.TempDir()
+	store := NewStore(filepath.Join(root, "accounts.json"), filepath.Join(root, "profiles"))
+	personal, err := store.Add(Claude, "personal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Add(Claude, "work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetLastSelected(Claude, personal.Name); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(personal.Home, "credentials"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, trashPath, err := store.Delete(Claude, personal.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if deleted != personal {
+		t.Fatalf("deleted = %#v, want %#v", deleted, personal)
+	}
+	if _, err := os.Stat(personal.Home); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("profile home still exists: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(trashPath, "credentials"))
+	if err != nil || string(data) != "secret" {
+		t.Fatalf("trashed credentials = %q, %v", data, err)
+	}
+	registry, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := registry.Find(Claude, personal.Name); ok {
+		t.Fatal("deleted account remains in registry")
+	}
+	if registry.Default[Claude] != "" || registry.LastSelected[Claude] != "" {
+		t.Fatalf("default/last-selected = %q/%q, want cleared", registry.Default[Claude], registry.LastSelected[Claude])
+	}
+}
+
+func TestDeleteRejectsProfileOutsideManagedLocation(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(root, "outside")
+	if err := os.Mkdir(outside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(filepath.Join(root, "accounts.json"), filepath.Join(root, "profiles"))
+	registry := Registry{
+		Accounts:  []Account{{Provider: Claude, Name: "work", Home: outside}},
+		Default:   map[Provider]string{Claude: "work"},
+		Selection: DefaultSelectionPolicy(),
+	}
+	if err := store.Save(registry); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := store.Delete(Claude, "work"); err == nil {
+		t.Fatal("Delete() accepted a profile outside its managed location")
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatalf("outside profile was changed: %v", err)
 	}
 }
 
