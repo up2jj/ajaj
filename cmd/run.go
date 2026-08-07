@@ -43,16 +43,16 @@ func newRunCmd(deps dependencies) *cobra.Command {
 func newProviderCmd(deps dependencies, provider account.Provider) *cobra.Command {
 	return &cobra.Command{
 		Use:                string(provider) + " [arguments...]",
-		Short:              "Run " + string(provider) + " with its preferred or auto-selected profile",
+		Short:              "Run " + string(provider) + " with its default or auto-selected profile",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := deps.store.Load()
 			if err != nil {
 				return err
 			}
-			a, ok := registry.ActiveAccount(provider)
+			a, ok := registry.DefaultAccount(provider)
 			if !ok {
-				return fmt.Errorf("no preferred %s profile; add one with ajaj account add %s <name>", provider, provider)
+				return fmt.Errorf("no default %s profile; add one with ajaj account add %s <name>", provider, provider)
 			}
 			if deps.usage != nil {
 				selection, selectErr := deps.usage.Select(cmd.Context(), registry, provider)

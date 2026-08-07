@@ -35,7 +35,7 @@ command / Bubble Tea ────┤
 - Codex isolation uses `CODEX_HOME`. Each Codex account home is initialized
   with `cli_auth_credentials_store = "file"`, so credentials stay inside that
   isolated home instead of collapsing back into one OS-keychain entry.
-- The registry contains only provider, display name, path, preferred selection,
+- The registry contains only provider, display name, path, default selection,
   and the most recently selected profile.
   It is written atomically with mode `0600`; profile directories use `0700`.
 - Provider-specific behavior lives behind a small adapter, so another coding
@@ -66,7 +66,7 @@ ajaj account add claude personal --login
 ajaj account add claude work --login
 ajaj account add codex personal --login
 
-# Inspect profiles and change the preferred profile for each provider.
+# Inspect profiles and change the default profile for each provider.
 ajaj account list
 ajaj account use claude work
 ajaj account current
@@ -79,11 +79,11 @@ ajaj account auto off
 ajaj usage
 ajaj usage refresh codex
 
-# Forward every remaining argument using the preferred or auto-selected profile.
+# Forward every remaining argument using the default or auto-selected profile.
 ajaj claude --model opus
 ajaj codex --full-auto
 
-# Run an explicit account without changing the preferred selection.
+# Run an explicit account without changing the default selection.
 ajaj run claude personal --model sonnet
 
 # Open the interactive picker and launch the selected account.
@@ -93,10 +93,10 @@ ajaj
 ## Automatic selection
 
 `ajaj claude ...` and `ajaj codex ...` choose a profile immediately before
-starting the provider process. The configured preferred profile remains
+starting the provider process. The configured default profile remains
 unchanged. When its fresh usage snapshot reaches the threshold, `ajaj`
 uses the fresh, below-threshold profile with the lowest usage for that launch.
-It does not switch during a running session, alter the preferred profile, or
+It does not switch during a running session, alter the default profile, or
 retry a failed prompt under another identity.
 
 - Codex usage is refreshed through the supported `codex app-server`
@@ -138,10 +138,10 @@ is running and restores the previous title afterward. Terminal-title escapes
 are never written when output is redirected.
 
 Use `ajaj account current [claude|codex]` from another terminal to distinguish
-the configured preferred profile from the most recently selected launch:
+the configured default profile from the most recently selected launch:
 
 ```text
-claude   preferred=work  last-selected=personal
+claude   default=work  last-selected=personal
 ```
 
 These labels identify the isolated ajaj profile, not the remote identity.

@@ -23,7 +23,7 @@ func newAccountCmd(deps dependencies) *cobra.Command {
 func newAccountCurrentCmd(deps dependencies) *cobra.Command {
 	return &cobra.Command{
 		Use:   "current [claude|codex]",
-		Short: "Show preferred and most recently launched profiles",
+		Short: "Show default and most recently launched profiles",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry, err := deps.store.Load()
@@ -39,8 +39,8 @@ func newAccountCurrentCmd(deps dependencies) *cobra.Command {
 				providers = []account.Provider{provider}
 			}
 			for _, provider := range providers {
-				preferred := registry.Active[provider]
-				if preferred == "" {
+				defaultName := registry.Default[provider]
+				if defaultName == "" {
 					fmt.Fprintf(cmd.OutOrStdout(), "%-8s not configured\n", provider)
 					continue
 				}
@@ -48,7 +48,7 @@ func newAccountCurrentCmd(deps dependencies) *cobra.Command {
 				if selected == "" {
 					selected = "never launched"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-8s preferred=%s  last-selected=%s\n", provider, preferred, selected)
+				fmt.Fprintf(cmd.OutOrStdout(), "%-8s default=%s  last-selected=%s\n", provider, defaultName, selected)
 			}
 			return nil
 		},
@@ -106,7 +106,7 @@ func newAccountListCmd(deps dependencies) *cobra.Command {
 			}
 			for _, a := range registry.Accounts {
 				marker := " "
-				if registry.Active[a.Provider] == a.Name {
+				if registry.Default[a.Provider] == a.Name {
 					marker = "*"
 				}
 				usageText := ""
@@ -163,17 +163,17 @@ func newAccountAutoCmd(deps dependencies) *cobra.Command {
 func newAccountUseCmd(deps dependencies) *cobra.Command {
 	return &cobra.Command{
 		Use:   "use <claude|codex> <name>",
-		Short: "Set the preferred profile for a provider",
+		Short: "Set the default profile for a provider",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			provider, err := account.ParseProvider(args[0])
 			if err != nil {
 				return err
 			}
-			if err := deps.store.SetActive(provider, args[1]); err != nil {
+			if err := deps.store.SetDefault(provider, args[1]); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Preferred %s profile: %s\n", provider, args[1])
+			fmt.Fprintf(cmd.OutOrStdout(), "Default %s profile: %s\n", provider, args[1])
 			return nil
 		},
 	}

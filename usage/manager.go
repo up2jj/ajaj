@@ -24,11 +24,11 @@ func NewManager(store *Store, env []string) *Manager {
 }
 
 type Selection struct {
-	Account   account.Account
-	Preferred account.Account
-	Switched  bool
-	Reason    string
-	Warning   error
+	Account  account.Account
+	Default  account.Account
+	Switched bool
+	Reason   string
+	Warning  error
 }
 
 func (m *Manager) Snapshot(a account.Account) (Snapshot, bool, error) {
@@ -50,26 +50,26 @@ func (m *Manager) Refresh(ctx context.Context, a account.Account) (Snapshot, err
 }
 
 func (m *Manager) Select(ctx context.Context, registry account.Registry, provider account.Provider) (Selection, error) {
-	preferred, ok := registry.ActiveAccount(provider)
+	defaultAccount, ok := registry.DefaultAccount(provider)
 	if !ok {
-		return Selection{}, fmt.Errorf("no preferred %s profile", provider)
+		return Selection{}, fmt.Errorf("no default %s profile", provider)
 	}
-	result := Selection{Account: preferred, Preferred: preferred}
+	result := Selection{Account: defaultAccount, Default: defaultAccount}
 	if !registry.Selection.Auto {
 		return result, nil
 	}
 
-	preferredSnapshot, known, warning := m.currentSnapshot(ctx, preferred, true)
+	defaultSnapshot, known, warning := m.currentSnapshot(ctx, defaultAccount, true)
 	result.Warning = warning
-	used, hasUsage := preferredSnapshot.Used(m.now())
-	if !known || !hasUsage || !preferredSnapshot.Fresh(m.now(), snapshotMaxAge) || used < registry.Selection.SwitchAt {
+	used, hasUsage := defaultSnapshot.Used(m.now())
+	if !known || !hasUsage || !defaultSnapshot.Fresh(m.now(), snapshotMaxAge) || used < registry.Selection.SwitchAt {
 		return result, nil
 	}
 
 	var best account.Account
 	bestUsage := 101.0
 	for _, candidate := range registry.Accounts {
-		if candidate.Provider != provider || candidate.Name == preferred.Name {
+		if candidate.Provider != provider || candidate.Name == defaultAccount.Name {
 			continue
 		}
 		snapshot, candidateKnown, refreshErr := m.currentSnapshot(ctx, candidate, true)
@@ -90,7 +90,7 @@ func (m *Manager) Select(ctx context.Context, registry account.Registry, provide
 	if best.Name != "" {
 		result.Account = best
 		result.Switched = true
-		result.Reason = fmt.Sprintf("%s is at %.0f%%; %s is at %.0f%%", preferred.ID(), used, best.ID(), bestUsage)
+		result.Reason = fmt.Sprintf("%s is at %.0f%%; %s is at %.0f%%", defaultAccount.ID(), used, best.ID(), bestUsage)
 		return result, nil
 	}
 	return result, nil

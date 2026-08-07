@@ -31,7 +31,7 @@ func (a Account) ID() string { return string(a.Provider) + "/" + a.Name }
 
 type Registry struct {
 	Accounts     []Account           `json:"accounts"`
-	Active       map[Provider]string `json:"active"`
+	Default      map[Provider]string `json:"default"`
 	LastSelected map[Provider]string `json:"last_selected,omitempty"`
 	Selection    SelectionPolicy     `json:"selection"`
 }
@@ -50,8 +50,8 @@ func (r Registry) Find(provider Provider, name string) (Account, bool) {
 	return Account{}, false
 }
 
-func (r Registry) ActiveAccount(provider Provider) (Account, bool) {
-	return r.Find(provider, r.Active[provider])
+func (r Registry) DefaultAccount(provider Provider) (Account, bool) {
+	return r.Find(provider, r.Default[provider])
 }
 
 func (r *Registry) Sort() {
@@ -94,7 +94,7 @@ func (s *Store) Load() (Registry, error) {
 	data, err := os.ReadFile(s.registryPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return Registry{
-			Active:       make(map[Provider]string),
+			Default:      make(map[Provider]string),
 			LastSelected: make(map[Provider]string),
 			Selection:    DefaultSelectionPolicy(),
 		}, nil
@@ -107,8 +107,8 @@ func (s *Store) Load() (Registry, error) {
 	if err := json.Unmarshal(data, &registry); err != nil {
 		return Registry{}, fmt.Errorf("decoding account registry: %w", err)
 	}
-	if registry.Active == nil {
-		registry.Active = make(map[Provider]string)
+	if registry.Default == nil {
+		registry.Default = make(map[Provider]string)
 	}
 	if registry.LastSelected == nil {
 		registry.LastSelected = make(map[Provider]string)
@@ -156,8 +156,8 @@ func (s *Store) Add(provider Provider, name string) (Account, error) {
 	a := Account{Provider: provider, Name: name, Home: home}
 	registry.Accounts = append(registry.Accounts, a)
 	registry.Sort()
-	if _, exists := registry.Active[provider]; !exists {
-		registry.Active[provider] = name
+	if _, exists := registry.Default[provider]; !exists {
+		registry.Default[provider] = name
 	}
 	if err := s.Save(registry); err != nil {
 		return Account{}, err
@@ -165,7 +165,7 @@ func (s *Store) Add(provider Provider, name string) (Account, error) {
 	return a, nil
 }
 
-func (s *Store) SetActive(provider Provider, name string) error {
+func (s *Store) SetDefault(provider Provider, name string) error {
 	registry, err := s.Load()
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func (s *Store) SetActive(provider Provider, name string) error {
 	if _, exists := registry.Find(provider, name); !exists {
 		return fmt.Errorf("account %s/%s does not exist", provider, name)
 	}
-	registry.Active[provider] = name
+	registry.Default[provider] = name
 	return s.Save(registry)
 }
 

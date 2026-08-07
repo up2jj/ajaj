@@ -19,14 +19,14 @@ var (
 
 type Model struct {
 	accounts []account.Account
-	active   map[account.Provider]string
+	defaults map[account.Provider]string
 	cursor   int
 	width    int
 	Selected *account.Account
 }
 
-func New(accounts []account.Account, active map[account.Provider]string) Model {
-	return Model{accounts: accounts, active: active}
+func New(accounts []account.Account, defaults map[account.Provider]string) Model {
+	return Model{accounts: accounts, defaults: defaults}
 }
 
 func (m Model) Init() tea.Cmd { return nil }
@@ -69,12 +69,12 @@ func (m Model) View() tea.View {
 			cursor = "› "
 			style = selectedStyle
 		}
-		active := ""
-		if m.active[a.Provider] == a.Name {
-			active = dimStyle.Render("  active")
+		defaultLabel := ""
+		if m.defaults[a.Provider] == a.Name {
+			defaultLabel = dimStyle.Render("  default")
 		}
 		b.WriteString(style.Render(fmt.Sprintf("%s%-8s %s", cursor, a.Provider, a.Name)))
-		b.WriteString(active)
+		b.WriteString(defaultLabel)
 		b.WriteByte('\n')
 	}
 	b.WriteString("\n")

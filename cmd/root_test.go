@@ -41,9 +41,9 @@ func TestAccountCommands(t *testing.T) {
 	}{
 		{"add", []string{"account", "add", "claude", "personal"}, "Added claude/personal"},
 		{"add second", []string{"account", "add", "claude", "work"}, "Added claude/work"},
-		{"use", []string{"account", "use", "claude", "work"}, "Preferred claude profile: work"},
+		{"use", []string{"account", "use", "claude", "work"}, "Default claude profile: work"},
 		{"auto", []string{"account", "auto", "on", "--threshold", "80"}, "switch at 80%"},
-		{"current", []string{"account", "current", "claude"}, "preferred=work  last-selected=never launched"},
+		{"current", []string{"account", "current", "claude"}, "default=work  last-selected=never launched"},
 		{"list", []string{"account", "list"}, "* claude   work"},
 	}
 
@@ -80,7 +80,7 @@ func TestEmptyRootExplainsNextStep(t *testing.T) {
 	}
 }
 
-func TestProviderCommandForwardsArgumentsToActiveAccount(t *testing.T) {
+func TestProviderCommandForwardsArgumentsToDefaultAccount(t *testing.T) {
 	rootDir := t.TempDir()
 	store := account.NewStore(filepath.Join(rootDir, "accounts.json"), filepath.Join(rootDir, "profiles"))
 	if _, err := store.Add(account.Claude, "work"); err != nil {
@@ -114,7 +114,7 @@ func TestProviderCommandForwardsArgumentsToActiveAccount(t *testing.T) {
 	if err := current.ExecuteContext(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "preferred=work  last-selected=work") {
+	if !strings.Contains(out.String(), "default=work  last-selected=work") {
 		t.Fatalf("account current output = %q", out.String())
 	}
 }
@@ -174,8 +174,8 @@ func TestAutomaticSelectionRecordsActuallyLaunchedProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if registry.Active[account.Claude] != "work" || registry.LastSelected[account.Claude] != "personal" {
-		t.Fatalf("preferred/last-selected = %q/%q", registry.Active[account.Claude], registry.LastSelected[account.Claude])
+	if registry.Default[account.Claude] != "work" || registry.LastSelected[account.Claude] != "personal" {
+		t.Fatalf("default/last-selected = %q/%q", registry.Default[account.Claude], registry.LastSelected[account.Claude])
 	}
 	if !strings.Contains(out.String(), "auto-selected claude/personal") {
 		t.Fatalf("stderr = %q", out.String())

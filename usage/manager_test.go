@@ -21,7 +21,7 @@ func TestSelectSwitchesToLowestFreshUsage(t *testing.T) {
 	writeUsage(t, store, backup, now, 12)
 	registry := account.Registry{
 		Accounts:  []account.Account{work, personal, backup},
-		Active:    map[account.Provider]string{account.Claude: "work"},
+		Default:   map[account.Provider]string{account.Claude: "work"},
 		Selection: account.SelectionPolicy{Auto: true, SwitchAt: 90},
 	}
 
@@ -34,7 +34,7 @@ func TestSelectSwitchesToLowestFreshUsage(t *testing.T) {
 	}
 }
 
-func TestSelectKeepsPreferredWhenDisabledBelowThresholdOrStale(t *testing.T) {
+func TestSelectKeepsDefaultWhenDisabledBelowThresholdOrStale(t *testing.T) {
 	now := time.Unix(10_000, 0)
 	for _, test := range []struct {
 		name    string
@@ -50,21 +50,21 @@ func TestSelectKeepsPreferredWhenDisabledBelowThresholdOrStale(t *testing.T) {
 			store := NewStore(t.TempDir())
 			manager := NewManager(store, nil)
 			manager.now = func() time.Time { return now }
-			preferred := account.Account{Provider: account.Claude, Name: "preferred"}
+			defaultAccount := account.Account{Provider: account.Claude, Name: "default"}
 			alternate := account.Account{Provider: account.Claude, Name: "alternate"}
-			writeUsage(t, store, preferred, test.updated, test.used)
+			writeUsage(t, store, defaultAccount, test.updated, test.used)
 			writeUsage(t, store, alternate, now, 1)
 			registry := account.Registry{
-				Accounts:  []account.Account{preferred, alternate},
-				Active:    map[account.Provider]string{account.Claude: preferred.Name},
+				Accounts:  []account.Account{defaultAccount, alternate},
+				Default:   map[account.Provider]string{account.Claude: defaultAccount.Name},
 				Selection: account.SelectionPolicy{Auto: test.auto, SwitchAt: 90},
 			}
 			selection, err := manager.Select(context.Background(), registry, account.Claude)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if selection.Switched || selection.Account.Name != preferred.Name {
-				t.Fatalf("Select() = %#v; want preferred", selection)
+			if selection.Switched || selection.Account.Name != defaultAccount.Name {
+				t.Fatalf("Select() = %#v; want default", selection)
 			}
 		})
 	}

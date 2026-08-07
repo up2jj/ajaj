@@ -77,7 +77,7 @@ func newRootCmd(deps dependencies) *cobra.Command {
 				return nil
 			}
 
-			program := tea.NewProgram(tui.New(registry.Accounts, registry.Active))
+			program := tea.NewProgram(tui.New(registry.Accounts, registry.Default))
 			final, err := program.Run()
 			if err != nil {
 				return fmt.Errorf("running account picker: %w", err)
@@ -86,7 +86,7 @@ func newRootCmd(deps dependencies) *cobra.Command {
 			if !ok || model.Selected == nil {
 				return nil
 			}
-			if err := deps.store.SetActive(model.Selected.Provider, model.Selected.Name); err != nil {
+			if err := deps.store.SetDefault(model.Selected.Provider, model.Selected.Name); err != nil {
 				return err
 			}
 			return runAccount(cmd, deps, *model.Selected)

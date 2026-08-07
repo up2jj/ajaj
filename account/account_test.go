@@ -1,6 +1,7 @@
 package account
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +32,7 @@ func TestStoreAccountLifecycle(t *testing.T) {
 		t.Fatalf("Codex config does not select file credential storage: %s", config)
 	}
 
-	if err := store.SetActive(Codex, "work"); err != nil {
+	if err := store.SetDefault(Codex, "work"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetLastSelected(Codex, "work"); err != nil {
@@ -41,9 +42,9 @@ func TestStoreAccountLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	active, ok := registry.ActiveAccount(Codex)
-	if !ok || active.Name != "work" {
-		t.Fatalf("ActiveAccount(Codex) = %#v, %v", active, ok)
+	defaultAccount, ok := registry.DefaultAccount(Codex)
+	if !ok || defaultAccount.Name != "work" {
+		t.Fatalf("DefaultAccount(Codex) = %#v, %v", defaultAccount, ok)
 	}
 	if !registry.Selection.Auto || registry.Selection.SwitchAt != 90 {
 		t.Fatalf("default selection policy = %#v", registry.Selection)
@@ -84,6 +85,30 @@ func TestRegistryFileIsPrivate(t *testing.T) {
 	}
 	if got := info.Mode().Perm(); got != 0o600 {
 		t.Fatalf("registry permissions = %o, want 600", got)
+	}
+}
+
+func TestRegistryUsesDefaultJSONKey(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "accounts.json")
+	store := NewStore(path, filepath.Join(root, "profiles"))
+	if _, err := store.Add(Claude, "work"); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var registry map[string]json.RawMessage
+	if err := json.Unmarshal(data, &registry); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := registry["default"]; !ok {
+		t.Fatalf("registry = %s, want default key", data)
+	}
+	if _, ok := registry["active"]; ok {
+		t.Fatalf("registry = %s, does not want active key", data)
 	}
 }
 
